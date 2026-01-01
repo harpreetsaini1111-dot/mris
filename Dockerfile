@@ -7,4 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["gunicorn", "-b", ":8080", "app:app"]
+ENV PORT=8080
+
+CMD ["gunicorn", "-b", ":8080", "--workers", "1", "--threads", "8", "app:app"]
