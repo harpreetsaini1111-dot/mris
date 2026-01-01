@@ -1,41 +1,38 @@
 import os
 import json
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 
 # -------------------------------------------------
-# APP INITIALIZATION (EXPLICIT PATHS – CLOUD RUN SAFE)
+# BASE PATHS (CLOUD RUN SAFE)
 # -------------------------------------------------
 BASE_DIR = os.getcwd()
 
 app = Flask(
     __name__,
-    template_folder=os.path.join(BASE_DIR, "templates"),
     static_folder=os.path.join(BASE_DIR, "static")
 )
 
-# -------------------------------------------------
-# STORAGE DIRECTORIES
-# -------------------------------------------------
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 TEMPLATES_DATA_DIR = os.path.join(BASE_DIR, "data", "templates")
+UI_DIR = os.path.join(BASE_DIR, "templates")  # UI HTML lives here
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
 os.makedirs(TEMPLATES_DATA_DIR, exist_ok=True)
 
 # -------------------------------------------------
-# HEALTH CHECK (CLOUD RUN)
+# HEALTH CHECK
 # -------------------------------------------------
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
 
 # -------------------------------------------------
-# HOME (INDEX PAGE)
+# SERVE UI (RAW HTML – NO JINJA)
 # -------------------------------------------------
 @app.route("/")
 def home():
-    return render_template("index.html")
+    return send_from_directory(UI_DIR, "index.html")
 
 # -------------------------------------------------
 # LIST TEMPLATES BY MODALITY
@@ -69,7 +66,7 @@ def load_template(template_id):
 
 # -------------------------------------------------
 # SAVE TYPED REPORT
-# (INDEXED BY NAME + MODALITY + DATE)
+# (NAME + MODALITY + DATE)
 # -------------------------------------------------
 @app.route("/api/save-report", methods=["POST"])
 def save_report():
@@ -80,7 +77,7 @@ def save_report():
     date = data.get("date", "").strip()
 
     if not patient or not modality or not date:
-        return jsonify({"error": "Patient, Modality and Date are required"}), 400
+        return jsonify({"error": "Patient, Modality and Date required"}), 400
 
     filename = f"{patient.replace(' ', '_')}__{modality}__{date}.json"
     filepath = os.path.join(REPORTS_DIR, filename)
@@ -120,7 +117,7 @@ def search_reports():
     return jsonify(results)
 
 # -------------------------------------------------
-# UPLOAD WORD REPORT (METADATA ONLY FOR NOW)
+# UPLOAD WORD REPORT (METADATA ONLY)
 # -------------------------------------------------
 @app.route("/api/upload-report", methods=["POST"])
 def upload_report():
@@ -148,7 +145,7 @@ def upload_report():
     return jsonify({"status": "uploaded"})
 
 # -------------------------------------------------
-# WORD EXPORT (STUB – SAFE, NO 500)
+# WORD EXPORT (SAFE STUB)
 # -------------------------------------------------
 @app.route("/api/export-word", methods=["POST"])
 def export_word():
