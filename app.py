@@ -3,56 +3,62 @@ import json
 from flask import Flask, request, jsonify, render_template
 from werkzeug.utils import secure_filename
 
-# ----------------------------
-# APP INITIALIZATION
-# ----------------------------
-app = Flask(__name__, template_folder="templates", static_folder="static")
-# ----------------------------
-# PATHS (ABSOLUTE, SAFE)
-# ----------------------------
+# -------------------------------------------------
+# APP INITIALIZATION (EXPLICIT PATHS – CLOUD RUN SAFE)
+# -------------------------------------------------
 BASE_DIR = os.getcwd()
+
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, "templates"),
+    static_folder=os.path.join(BASE_DIR, "static")
+)
+
+# -------------------------------------------------
+# STORAGE DIRECTORIES
+# -------------------------------------------------
 REPORTS_DIR = os.path.join(BASE_DIR, "reports")
 TEMPLATES_DATA_DIR = os.path.join(BASE_DIR, "data", "templates")
 
 os.makedirs(REPORTS_DIR, exist_ok=True)
 os.makedirs(TEMPLATES_DATA_DIR, exist_ok=True)
 
-# ----------------------------
-# HEALTH CHECK
-# ----------------------------
+# -------------------------------------------------
+# HEALTH CHECK (CLOUD RUN)
+# -------------------------------------------------
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
 
-# ----------------------------
-# HOME PAGE
-# ----------------------------
+# -------------------------------------------------
+# HOME (INDEX PAGE)
+# -------------------------------------------------
 @app.route("/")
 def home():
     return render_template("index.html")
 
-# ----------------------------
+# -------------------------------------------------
 # LIST TEMPLATES BY MODALITY
-# ----------------------------
+# -------------------------------------------------
 @app.route("/api/templates")
 def list_templates():
-    modality = request.args.get("modality", "")
+    modality = request.args.get("modality", "").strip()
     path = os.path.join(TEMPLATES_DATA_DIR, modality)
 
-    results = []
+    templates = []
     if os.path.isdir(path):
         for f in os.listdir(path):
             if f.endswith(".html"):
-                results.append({
+                templates.append({
                     "id": f,
                     "name": f.replace(".html", "")
                 })
 
-    return jsonify(results)
+    return jsonify(templates)
 
-# ----------------------------
+# -------------------------------------------------
 # LOAD SINGLE TEMPLATE
-# ----------------------------
+# -------------------------------------------------
 @app.route("/api/template/<template_id>")
 def load_template(template_id):
     for root, _, files in os.walk(TEMPLATES_DATA_DIR):
@@ -61,9 +67,10 @@ def load_template(template_id):
                 return jsonify({"content": f.read()})
     return jsonify({"content": ""})
 
-# ----------------------------
-# SAVE REPORT (JSON)
-# ----------------------------
+# -------------------------------------------------
+# SAVE TYPED REPORT
+# (INDEXED BY NAME + MODALITY + DATE)
+# -------------------------------------------------
 @app.route("/api/save-report", methods=["POST"])
 def save_report():
     data = request.get_json(force=True)
@@ -73,7 +80,7 @@ def save_report():
     date = data.get("date", "").strip()
 
     if not patient or not modality or not date:
-        return jsonify({"error": "Patient, Modality, Date required"}), 400
+        return jsonify({"error": "Patient, Modality and Date are required"}), 400
 
     filename = f"{patient.replace(' ', '_')}__{modality}__{date}.json"
     filepath = os.path.join(REPORTS_DIR, filename)
@@ -83,9 +90,9 @@ def save_report():
 
     return jsonify({"status": "saved"})
 
-# ----------------------------
-# SEARCH REPORTS
-# ----------------------------
+# -------------------------------------------------
+# FETCH SAVED REPORTS
+# -------------------------------------------------
 @app.route("/api/search")
 def search_reports():
     name = request.args.get("name", "").lower()
@@ -112,9 +119,9 @@ def search_reports():
 
     return jsonify(results)
 
-# ----------------------------
-# UPLOAD WORD REPORT (METADATA ONLY)
-# ----------------------------
+# -------------------------------------------------
+# UPLOAD WORD REPORT (METADATA ONLY FOR NOW)
+# -------------------------------------------------
 @app.route("/api/upload-report", methods=["POST"])
 def upload_report():
     file = request.files.get("file")
@@ -123,7 +130,7 @@ def upload_report():
     date = request.form.get("date", "").strip()
 
     if not file or not patient or not modality or not date:
-        return jsonify({"error": "Missing data"}), 400
+        return jsonify({"error": "File, Patient, Modality and Date required"}), 400
 
     data = {
         "patient": patient,
@@ -140,18 +147,19 @@ def upload_report():
 
     return jsonify({"status": "uploaded"})
 
-# ----------------------------
-# WORD EXPORT (STUB – SAFE)
-# ----------------------------
+# -------------------------------------------------
+# WORD EXPORT (STUB – SAFE, NO 500)
+# -------------------------------------------------
 @app.route("/api/export-word", methods=["POST"])
 def export_word():
-    return ("Word export not implemented yet", 501)
+    return ("Word export will be added next", 501)
 
-# ----------------------------
-# LOCAL RUN (CLOUD RUN IGNORES THIS)
-# ----------------------------
+# -------------------------------------------------
+# LOCAL RUN (IGNORED BY CLOUD RUN)
+# -------------------------------------------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
+
 
 
